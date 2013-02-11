@@ -1,0 +1,30 @@
+<Module>
+ <ModulePrefs title="Hello World!">
+ <Require feature="opensocial-0.8" />
+ </ModulePrefs>
+ <Content type="html" view="canvas">
+ <![CDATA[
+<script type="text/javaScript">
+
+    function loadFrame() {
+        var token = shindig.auth.getSecurityToken();
+        var srcString = '{{ url_for('main') }}?st=' + token;
+        alert(srcString);
+        document.getElementById('container').innerHTML = '<iframe frameborder="0" width="710" height="650" src="'+srcString+'"></iframe>';
+        gadgets.window.adjustHeight(); //so app resizes itself based on content
+    }
+
+    function init() {
+       loadFrame(); 
+    }
+
+    gadgets.util.registerOnLoadHandler(init);
+</script>
+
+
+ <h2>Hello world!</h2>
+ <div id="container">
+ </div>
+ ]]>
+</Content>
+</Module>
