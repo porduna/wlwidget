@@ -2,21 +2,24 @@
  <ModulePrefs title="Hello World!">
  <Require feature="opensocial-0.8" />
  <Require feature="osapi" />
+ <Require feature="dynamic-height" />
  </ModulePrefs>
  <Content type="html" view="canvas">
  <![CDATA[
 <script type="text/javaScript">
 
-    function populateIFrame() {
-        alert("Populating iframe");
+    function processMessages(e) {
         var ifr = document.getElementById('weblabIFrame');
-        alert(ifr.contentWindow.document.body);
+        if(e.origin == 'http://www.weblab.deusto.es') {
+            e.source.postMessage("I'm your parent", e.origin);
+        }
     }
 
     function init() {
        var token = shindig.auth.getSecurityToken();
        var srcString = '{{ url_for('main', _external=True) }}?st=' + token;
-       document.getElementById('container').innerHTML = '<iframe id="weblabIFrame" frameborder="0" onload="populateIFrame()" width="710" height="650" src="'+srcString+'"></iframe>';
+       document.getElementById('container').innerHTML = '<iframe id="weblabIFrame" frameborder="0" width="710" height="650" src="'+srcString+'"></iframe>';
+       window.addEventListener('message', processMessages, false);
        gadgets.window.adjustHeight(); //so app resizes itself based on content
     }
 
