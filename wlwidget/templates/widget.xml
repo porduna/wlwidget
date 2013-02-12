@@ -10,7 +10,7 @@
 
     function processMessages(e) {
         var ifr = document.getElementById('weblabIFrame');
-        if(e.origin == 'http://www.weblab.deusto.es') {
+        if(e.origin == 'http://cloud.weblab.deusto.es') {
             e.source.postMessage("I'm your parent", e.origin);
         }
     }
