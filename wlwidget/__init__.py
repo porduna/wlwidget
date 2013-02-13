@@ -19,18 +19,23 @@ if os.uname()[1] in ('plunder','scabb'): # Deusto servers
 def main():
     st = request.args.get('st') or ''
     try:
-        content = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@me/@self?st=%s" % st).read()
-        content = json.loads(content)
+        space_owner_str = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@owner/@self?st=%s" % st).read()
+        owner_data = json.loads(space_owner_str)
+        owner      = owner_data['entry']['displayName']
+
+        current_user_str  = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@me/@self?st=%s" % st).read()
+        current_user_data = json.loads(current_user_str)
         
-        name = (content['entry'].get('displayName') or 'anonymous')
-        user_id = content['entry'].get('id') or 'no-id'
-        return render_template("contents.html", name = name, id = user_id)
+        name    = current_user_data['entry'].get('displayName') or 'anonymous'
+        user_id = current_user_data['entry'].get('id') or 'no-id'
+
+        return render_template("contents.html", name = name, id = user_id, owner = owner)
     except Exception as e:
         return "Error: %s" % e
 
 @app.route("/widget.xml")
-@app.route("/widget2.xml")
-def widget():
+@app.route("/widget<id>.xml")
+def widget(id):
     return render_template('widget.xml', url = url_for('main', _external=True))
 
 @app.route('/')
