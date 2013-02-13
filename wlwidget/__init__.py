@@ -21,7 +21,9 @@ def main():
     try:
         space_owner_str = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@owner/@self?st=%s" % st).read()
         owner_data = json.loads(space_owner_str)
-        owner      = owner_data['entry']['displayName']
+
+        owner_name = owner_data['entry']['displayName']
+        owner_id   = owner_data['entry']['id']
 
         current_user_str  = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@me/@self?st=%s" % st).read()
         current_user_data = json.loads(current_user_str)

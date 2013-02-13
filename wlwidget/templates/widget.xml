@@ -12,6 +12,11 @@
 
     var MY_IDENTIFIER = Math.random();
 
+    function trace(msg) {
+        if (console && console.log) 
+            console.log(msg);
+    }
+
     function processMessages(e) {
         var ifr = document.getElementById('weblabIFrame');
         if(e.origin == 'http://cloud.weblab.deusto.es') {
@@ -20,6 +25,7 @@
     }
 
     var firstMessage = true;
+    var imMaster;
 
     function setUpMaster() {
         var token = shindig.auth.getSecurityToken();
@@ -33,6 +39,7 @@
 
     function onEvent(envelope, message) {
         if (message["wlwidget-msg"] == 'wlwidget::master-solver') {
+            trace("wlwidget-msg received. I'm " + MY_IDENTIFIER + "; got " + message['wlwidget-id'] + " and first is: " + firstMessage);
             if (firstMessage) {
                 if (message['wlwidget-id'] == MY_IDENTIFIER) {
                     imMaster = true;
@@ -68,13 +75,13 @@
             }
         });
 
+        trace("Submitting " + MY_IDENTIFIER);
+
         gadgets.openapp.connect(onEvent);
     }
 
     gadgets.util.registerOnLoadHandler(init);
 </script>
- <div>
- </div>
  <div id="container">
  </div>
  ]]>
