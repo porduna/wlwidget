@@ -5,9 +5,12 @@
  <Require feature="pubsub" />
  <Require feature="dynamic-height" />
  </ModulePrefs>
- <Content type="html" view="canvas">
+ <Content type="html" view="home">
  <![CDATA[
+<script type="text/javascript" src="http://open-app.googlecode.com/files/openapp.js"></script>
 <script type="text/javaScript">
+
+    var MY_IDENTIFIER = Math.random();
 
     function processMessages(e) {
         var ifr = document.getElementById('weblabIFrame');
@@ -16,16 +19,62 @@
         }
     }
 
+    var firstMessage = true;
+
+    function setUpMaster() {
+        var token = shindig.auth.getSecurityToken();
+        var srcString = '{{ url }}?st=' + token;
+        document.getElementById('container').innerHTML = '<iframe id="weblabIFrame" onload="gadgets.window.adjustHeight();" frameborder="0" width="100%" height="100%" src="'+srcString+'"></iframe>';
+    }
+
+    function setUpSlave() {
+        document.getElementById('container').innerHTML = "I'm a slave; waiting for orders...";
+    }
+
+    function onEvent(envelope, message) {
+        if (message["wlwidget-msg"] == 'wlwidget::master-solver') {
+            if (firstMessage) {
+                if (message['wlwidget-id'] == MY_IDENTIFIER) {
+                    imMaster = true;
+                    setUpMaster();
+                } else {
+                    imMaster = false;
+                    setUpSlave();
+                }
+                firstMessage = false;
+            }
+        } else {
+        }
+        return true;
+    }
+
     function init() {
-       var token = shindig.auth.getSecurityToken();
-       var srcString = '{{ url }}?st=' + token;
-       document.getElementById('container').innerHTML = '<iframe id="weblabIFrame" frameborder="0" width="100%" height="100%" src="'+srcString+'"></iframe>';
-       window.addEventListener('message', processMessages, false);
-       gadgets.window.adjustHeight(); //so app resizes itself based on content
+        
+        // Register event listener
+        window.addEventListener('message', processMessages, false);
+
+        // Adjust height
+        gadgets.window.adjustHeight();
+
+        // Send a message to all widgets (including this one), defining
+        // that I attempt to be the master. If my message is the first one
+        // in the queue, I'll be the master and the rest will be slaves.
+        gadgets.openapp.publish({
+            event: "select",
+            type: "json",
+            message: {
+                'wlwidget-msg' : 'wlwidget::master-solver',
+                'wlwidget-id'     : MY_IDENTIFIER, 
+            }
+        });
+
+        gadgets.openapp.connect(onEvent);
     }
 
     gadgets.util.registerOnLoadHandler(init);
 </script>
+ <div>
+ </div>
  <div id="container">
  </div>
  ]]>
