@@ -1,10 +1,23 @@
 import sys
 import os
 import urllib2
+import threading
+import traceback
 import json
+import time
 
-from flask import Flask, render_template, request, url_for
+from flask import Flask, render_template, request, url_for, redirect, abort
+
+from wlwidget.weblabdeusto_client import WebLabDeustoClient
+from wlwidget.weblabdeusto_data import ExperimentId, SessionId, Reservation
+
+# TODO: Configure
+WEBLABDEUSTO_BASEURL = 'https://www.weblab.deusto.es/weblab/'
+WEBLABDEUSTO_LOGIN   = 'weblabfed'
+WEBLABDEUSTO_PASSWD  = 'password'
+
 app = Flask(__name__)
+app.config.from_object(__name__)
 
 if os.uname()[1] in ('plunder','scabb'): # Deusto servers
     print "Installing proxy handler...",
@@ -14,6 +27,47 @@ if os.uname()[1] in ('plunder','scabb'): # Deusto servers
     urllib2.install_opener(opener)
     print "done"
 
+@app.route("/lab/<reservation_id>/")
+def confirmed(reservation_id):
+    url = "%sclient/federated.html#reservation_id=%s" % (app.config['WEBLABDEUSTO_BASEURL'], reservation_id)
+    return render_template('confirmed.html', url = url)
+
+@app.route("/status/<reservation_id>/")
+def get_status(reservation_id):
+    try:
+        refresh = True
+        try:
+            task_data = TASK_MANAGER.get_task(reservation_id)
+        except KeyError:
+            return abort(404)
+        
+        status = task_data['status']
+
+        refresh_time = 1
+
+        if status is None:
+            if task_data['finished']:
+                return "ERROR: It was finished"
+            waiting_message = "Waiting for the task manager to start"
+            refresh_time = 0.5
+        elif status.status == Reservation.WAITING:
+            waiting_message = 'In queue; position %s' % status.position
+        elif status.status == Reservation.WAITING_CONFIRMATION:
+            waiting_message = 'Waiting confirmation from the lab'
+            refresh_time = 0.5
+        elif status.status == Reservation.WAITING_INSTANCES:
+            waiting_message = 'Experiment broken. Waiting for admin to fix them. Position: %s' % status.position
+            refresh_time = 10
+        elif status.status == Reservation.CONFIRMED:
+            return redirect(url_for('confirmed', reservation_id = reservation_id))
+        else:
+            # POST_RESERVATION IS REMOVED
+            waiting_message = 'Unknown status. Contact admin'
+
+        return render_template('get_status.html', waiting_message = waiting_message, refresh = refresh, refresh_time = refresh_time)
+    except Exception as e:
+        traceback.print_exc()
+        return "Error: %s" % e
 
 @app.route("/main/")
 def main():
@@ -31,8 +85,28 @@ def main():
         name    = current_user_data['entry'].get('displayName') or 'anonymous'
         user_id = current_user_data['entry'].get('id') or 'no-id'
 
-        return render_template("contents.html", name = name, id = user_id, owner = owner)
+        # Many are not used (yet)
+
+        laboratory_id = 'ud-logic@PIC experiments'
+        client = WebLabDeustoClient(app.config['WEBLABDEUSTO_BASEURL'])
+        session_id = client.login(app.config['WEBLABDEUSTO_LOGIN'], app.config['WEBLABDEUSTO_PASSWD'])
+
+        consumer_data = {
+            "user_agent"    : request.headers.get('User-Agent') or None,
+            "referer"       : request.referrer,
+            "from_ip"       : request.remote_addr,
+            "external_user" : user_id,
+            #     "priority"      : "...", # the lower, the better
+            #     "time_allowed"  : 100,   # seconds
+            #     "initialization_in_accounting" :  False,
+        }
+        consumer_data_str = json.dumps(consumer_data)
+        reservation_status = client.reserve_experiment(session_id, ExperimentId.parse(laboratory_id), '{}', consumer_data_str)
+        reservation_id = reservation_status.reservation_id.id
+        TASK_MANAGER.add_task(client, reservation_id)
+        return redirect(url_for('get_status', reservation_id = reservation_id))
     except Exception as e:
+        traceback.print_exc()
         return "Error: %s" % e
 
 @app.route("/widget.xml")
@@ -43,4 +117,61 @@ def widget(id):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+class TaskManager(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.setDaemon(True)
+        self.setName("wlwidget-TaskManager")
+        self.lock = threading.Lock()
+        self.reservations = {}
+
+    def add_task(self, client, reservation_id):
+        with self.lock:
+            self.reservations[reservation_id] = dict( client=client, status = None, last_poll = time.time(), finished = False )
+
+    def get_task(self, reservation_id):
+        with self.lock:
+            return self.reservations[reservation_id].copy()
+
+    def run(self):
+        while True:
+            try:
+                reservations = []
+                with self.lock:
+                    for reservation_id in self.reservations:
+                        reservation_data = self.reservations[reservation_id]
+                        TIME_BETWEEN_POLLS = 2 # seconds
+                        if time.time() - reservation_data['last_poll'] > TIME_BETWEEN_POLLS:
+                            reservations.append((reservation_id, reservation_data))
+
+                reservations_to_remove = []
+
+                for reservation_id, reservation_data in reservations:
+                    client = reservation_data['client']
+                    try:
+                        print "Retrieving reservation...", reservation_id
+                        sys.stdout.flush()
+                        reservation_status = client.get_reservation_status(SessionId(reservation_id))
+                        print "Done:", reservation_status
+                        sys.stdout.flush()
+                    except Exception as e:
+                        traceback.print_exc()
+                        reservations_to_remove.append(reservation_id)
+                        continue
+                    else:
+                        reservation_data['status'] = reservation_status
+                        if reservation_status.status == 'Reservation::post_reservation':
+                            # TODO: retrieve usage data
+                            reservations_to_remove.append(reservation_id)
+
+                with self.lock:
+                    for reservation_id in reservations_to_remove:
+                        self.reservations.pop(reservation_id)
+            except:
+                traceback.print_exc()
+            time.sleep(0.2)
+
+TASK_MANAGER = TaskManager()
+TASK_MANAGER.start()
 
