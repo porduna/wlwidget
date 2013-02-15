@@ -24,35 +24,86 @@
         }
     }
 
-    var firstMessage = true;
-    var imMaster;
+    var imMaster = false;
+
+    function activateWidget(reservationId) {
+        
+    }
 
     function setUpMaster() {
+        imMaster = true;
         var token = shindig.auth.getSecurityToken();
         var srcString = '{{ url }}?st=' + token;
         document.getElementById('container').innerHTML = '<iframe id="weblabIFrame" onload="gadgets.window.adjustHeight();" frameborder="0" width="100%" height="100%" src="'+srcString+'"></iframe>';
     }
 
     function setUpSlave() {
-        document.getElementById('container').innerHTML = "I'm a slave; waiting for orders...";
+        document.getElementById('container').innerHTML = "Waiting for the master widget...";
     }
 
+    var inLoadingPeriod  = true;
+    var LOADING_TIME     = 400; // ms
+    var imMasterTemporal = false; // During the loading period, see if I'm gonna be one
+    var forceNotMaster   = false; // If after the loading time, somebody comes back, define "no, you're not the master"
+
     function onEvent(envelope, message) {
+        // Solving who is the master: there are two periods: the first one, short (LOADING_TIME), on which all the widgets send a message.
+        // The last message received by everybody will be the master. So everybody will think that they're the master until they receive
+        // a message defining that they're not. If in LOADING_TIME no more systems define that they're the master, they everyone know that
+        // they're the master. If later somebody comes in and says "hey, I'm the master", they will receive a message defining "no, you're 
+        // not".
         if (message["wlwidget-msg"] == 'wlwidget::master-solver') {
-            trace("wlwidget-msg received. I'm " + MY_IDENTIFIER + "; got " + message['wlwidget-id'] + " and first is: " + firstMessage);
-            if (firstMessage) {
+            if (inLoadingPeriod) {
+                trace("Still loading: I'm " + MY_IDENTIFIER + "; got: " + message['wlwidget-id']);
+                
+                if( forceNotMaster )
+                    return true;
+
                 if (message['wlwidget-id'] == MY_IDENTIFIER) {
-                    imMaster = true;
-                    setUpMaster();
+                    imMasterTemporal = true;
                 } else {
-                    imMaster = false;
-                    setUpSlave();
+                    imMasterTemporal = false;
                 }
-                firstMessage = false;
+            } else {
+                trace("Not loading anymore: force not master");
+
+                gadgets.openapp.publish({
+                    event: "select",
+                    type: "json",
+                    message: {
+                        'wlwidget-msg' : 'wlwidget::not-master',
+                        'wlwidget-id'     : MY_IDENTIFIER, 
+                    }
+                });
             }
-        } else {
+        } else if (message["wlwidget-msg"] == 'wlwidget::not-master') {
+            trace("Got a force not master");
+            forceNotMaster = true;
+            onLoadingTimeElapsed();
+        } else if (message["wlwidget-msg"] == 'wlwidget::activate') {
+            if (!imMaster ) {
+                activateWidget(message['wlwidget-reservation-id']);
+            }
         }
         return true;
+    }
+
+    function onLoadingTimeElapsed() {
+        if ( !inLoadingPeriod )
+            return;
+
+        inLoadingPeriod = false;
+        trace("Loading time elapsed: " + new Date().getTime() + "; force not master: " + forceNotMaster + "; imMasterTemporal: " + imMasterTemporal);
+
+        if (forceNotMaster) {
+            setUpSlave();
+        } else {
+            if(imMasterTemporal) {
+                setUpMaster();
+            } else {
+                setUpSlave();
+            }
+        }
     }
 
     function init() {
@@ -63,9 +114,6 @@
         // Adjust height
         gadgets.window.adjustHeight();
 
-        // Send a message to all widgets (including this one), defining
-        // that I attempt to be the master. If my message is the first one
-        // in the queue, I'll be the master and the rest will be slaves.
         gadgets.openapp.publish({
             event: "select",
             type: "json",
@@ -75,8 +123,8 @@
             }
         });
 
-        trace("Submitting " + MY_IDENTIFIER);
-
+        trace("Submitted " + MY_IDENTIFIER + "; now configuring timer: " + new Date().getTime());
+        setTimeout(function(){ onLoadingTimeElapsed(); }, LOADING_TIME);
         gadgets.openapp.connect(onEvent);
     }
 
