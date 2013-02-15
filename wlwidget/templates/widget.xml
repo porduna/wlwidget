@@ -18,8 +18,24 @@
         // Create SmartGateway
         var container = document.getElementById('container');
         var sg = new SmartGateway(container, '{{ url }}');
+
+        // Register a callback: whenever a widget has a reservationId, this method is called 
         sg.registerOnLoad( function(reservationId, url) {
-            container.innerHTML = "Got a reservation! " + reservationId + " <iframe src='" + url + "' width='100%' height='600px'>";
+
+            var contents = "";
+
+            // var contents = "Got a reservation! " + reservationId + "<br/>";
+
+            // Add which widget is interesting
+            if( url.indexOf("#") > 0 ) {
+                url += "&widget={{ widget }}";
+            } else {
+                url += "#widget={{ widget }}";
+            }
+            
+            // Now show it
+            contents += "<iframe src='" + url + "' width='100%' height='100%'>";
+            container.innerHTML = contents; 
             gadgets.window.adjustHeight();
         });
     }

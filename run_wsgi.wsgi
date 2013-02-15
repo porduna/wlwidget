@@ -14,6 +14,8 @@ sys.stdout = sys.stderr = f
 
 DIR = os.path.dirname(__file__)
 
+os.environ['WLWIDGET_SETTINGS'] = os.path.join(DIR,'secret_credentials.py')
+
 sys.path.insert(0, DIR)
 
 from wlwidget import app as application

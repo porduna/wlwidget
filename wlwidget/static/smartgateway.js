@@ -62,9 +62,15 @@ function SmartGateway(container, url) {
 
     this._setUpMaster = function() {
         me._imMaster = true;
-        var token = shindig.auth.getSecurityToken();
-        var srcString = url + '?st=' + token;
-        me._container.innerHTML = '<iframe id="weblabIFrame" onload="gadgets.window.adjustHeight();" frameborder="0" width="100%" height="100%" src="'+srcString+'"></iframe>';
+        var button = document.createElement("button");
+        button.appendChild(document.createTextNode("Start reservation process"));
+        button.onclick = function() {
+            var token = shindig.auth.getSecurityToken();
+            var srcString = url + '?st=' + token;
+            me._container.innerHTML = '<iframe id="weblabIFrame" onload="gadgets.window.adjustHeight();" frameborder="0" width="100%" height="100%" src="'+srcString+'"></iframe>';
+        };
+        button.onClick = button.onclick;
+        me._container.appendChild(button);
     }
 
     this._setUpSlave = function(){

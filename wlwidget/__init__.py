@@ -18,6 +18,7 @@ WEBLABDEUSTO_PASSWD  = 'password'
 
 app = Flask(__name__)
 app.config.from_object(__name__)
+app.config.from_envvar('WLWIDGET_SETTINGS', silent=True)
 
 if os.uname()[1] in ('plunder','scabb'): # Deusto servers
     print "Installing proxy handler...",
@@ -48,7 +49,7 @@ def get_status(reservation_id):
         if status is None:
             if task_data['finished']:
                 return "ERROR: It was finished"
-            waiting_message = "Waiting for the task manager to start"
+            waiting_message = "Starting reservation..."
             refresh_time = 0.5
         elif status.status == Reservation.WAITING:
             waiting_message = 'In queue; position %s' % status.position
@@ -69,8 +70,8 @@ def get_status(reservation_id):
         traceback.print_exc()
         return "Error: %s" % e
 
-@app.route("/main/")
-def main():
+@app.route("/main/<laboratory_id>/")
+def main(laboratory_id):
     st = request.args.get('st') or ''
     try:
         space_owner_str = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@owner/@self?st=%s" % st).read()
@@ -87,7 +88,6 @@ def main():
 
         # Many are not used (yet)
 
-        laboratory_id = 'ud-logic@PIC experiments'
         client = WebLabDeustoClient(app.config['WEBLABDEUSTO_BASEURL'])
         session_id = client.login(app.config['WEBLABDEUSTO_LOGIN'], app.config['WEBLABDEUSTO_PASSWD'])
 
@@ -111,8 +111,11 @@ def main():
 
 @app.route("/widget.xml")
 @app.route("/widget<id>.xml")
-def widget(id):
-    return render_template('widget.xml', url = url_for('main', _external=True))
+def widget(id = None):
+    widget = request.args.get('widget') or 'camera'
+    lab    = request.args.get('lab') or 'ud-logic@PIC experiments'
+    return render_template('widget.xml', url = url_for('main', laboratory_id = lab, _external = True), widget = widget)
+
 
 @app.route('/')
 def index():
