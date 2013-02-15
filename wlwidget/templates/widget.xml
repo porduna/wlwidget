@@ -11,26 +11,16 @@
 <script type="text/javascript" src="{{ url_for('static', filename='smartgateway.js', _external = True) }}"></script>
 <script type="text/javaScript">
 
-    function processMessages(e) {
-        var ifr = document.getElementById('weblabIFrame');
-        if(e.origin == 'http://cloud.weblab.deusto.es') {
-            e.source.postMessage("I'm your parent", e.origin);
-        }
-    }
-
     function init() {
-        
-        // Register event listener
-        window.addEventListener('message', processMessages, false);
-
         // Adjust height
         gadgets.window.adjustHeight();
 
         // Create SmartGateway
         var container = document.getElementById('container');
         var sg = new SmartGateway(container, '{{ url }}');
-        sg.registerOnLoad( function(reserationId) {
-            container.innerHTML = "Got a reservation! " + reservationId;
+        sg.registerOnLoad( function(reservationId, url) {
+            container.innerHTML = "Got a reservation! " + reservationId + " <iframe src='" + url + "' width='100%' height='600px'>";
+            gadgets.window.adjustHeight();
         });
     }
 

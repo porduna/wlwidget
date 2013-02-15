@@ -19,6 +19,8 @@ function SmartGateway(container, url) {
     this._loadCallback = null;
 
     this._init = function() {
+        window.addEventListener('message', me._processMessages, false);
+
         gadgets.openapp.publish({
             event: "select",
             type: "json",
@@ -31,6 +33,31 @@ function SmartGateway(container, url) {
         trace("Submitted " + me._identifier + "; now configuring timer: " + new Date().getTime());
         setTimeout(function(){ me._onLoadingTimeElapsed(); }, me._LOADING_TIME);
         gadgets.openapp.connect(me._onEvent);
+    }
+
+    this._processMessages = function(e) {
+        var ifr = document.getElementById('weblabIFrame');
+        if(e.origin == 'http://cloud.weblab.deusto.es' && new String(e.data).indexOf("reserved::") == 0) {
+            var data_str = e.data.split('::')[1];
+            trace('Do something with: ' + data_str);
+
+            var data = JSON.parse(data_str);
+            var reservation_id = data['reservation-id'];
+            var url = data['url'];
+
+            gadgets.openapp.publish({
+                event: "select",
+                type: "json",
+                message: {
+                    'wlwidget-msg'             : 'wlwidget::activate',
+                    'wlwidget-reservation-id'  : reservation_id,
+                    'wlwidget-reservation-url' : url,
+                }
+            });
+
+
+            me._loadCallback(reservation_id, url);
+        }
     }
 
     this._setUpMaster = function() {
@@ -81,7 +108,7 @@ function SmartGateway(container, url) {
         } else if (message["wlwidget-msg"] == 'wlwidget::activate') {
             if (!me._imMaster ) {
                 if ( me._loadCallback != null )
-                    me._loadCallback(message['wlwidget-reservation-id']);
+                    me._loadCallback(message['wlwidget-reservation-id'], message['wlwidget-reservation-url']);
                 else
                     alert("No callback defined!");
             }

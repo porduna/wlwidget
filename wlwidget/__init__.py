@@ -30,7 +30,7 @@ if os.uname()[1] in ('plunder','scabb'): # Deusto servers
 @app.route("/lab/<reservation_id>/")
 def confirmed(reservation_id):
     url = "%sclient/federated.html#reservation_id=%s" % (app.config['WEBLABDEUSTO_BASEURL'], reservation_id)
-    return render_template('confirmed.html', url = url)
+    return render_template('confirmed.html', url = url, reservation_id = reservation_id)
 
 @app.route("/status/<reservation_id>/")
 def get_status(reservation_id):
