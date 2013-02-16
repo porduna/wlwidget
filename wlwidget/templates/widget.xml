@@ -5,8 +5,10 @@
  <Require feature="pubsub" />
  <Require feature="dynamic-height" />
  </ModulePrefs>
- <Content type="html" view="home">
+ <Content type="html" view="home,canvas">
  <![CDATA[
+    <link  href="{{ url_for('static', filename="bootstrap/css/bootstrap.css", _external = True) }}" rel="stylesheet">
+
 <script type="text/javascript" src="http://open-app.googlecode.com/files/openapp.js"></script>
 <script type="text/javascript" src="{{ url_for('static', filename='smartgateway.js', _external = True) }}"></script>
 <script type="text/javaScript">

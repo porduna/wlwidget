@@ -11,10 +11,10 @@ from flask import Flask, render_template, request, url_for, redirect, abort
 from wlwidget.weblabdeusto_client import WebLabDeustoClient
 from wlwidget.weblabdeusto_data import ExperimentId, SessionId, Reservation
 
-# TODO: Configure
-WEBLABDEUSTO_BASEURL = 'https://www.weblab.deusto.es/weblab/'
-WEBLABDEUSTO_LOGIN   = 'weblabfed'
-WEBLABDEUSTO_PASSWD  = 'password'
+# These variables can be configured in the WLWIDGET_SETTINGS
+#WEBLABDEUSTO_BASEURL = 'https://www.weblab.deusto.es/weblab/'
+#WEBLABDEUSTO_LOGIN   = 'weblabfed'
+#WEBLABDEUSTO_PASSWD  = 'password'
 
 app = Flask(__name__)
 app.config.from_object(__name__)
@@ -30,7 +30,14 @@ if os.uname()[1] in ('plunder','scabb'): # Deusto servers
 
 @app.route("/lab/<reservation_id>/")
 def confirmed(reservation_id):
-    url = "%sclient/federated.html#reservation_id=%s" % (app.config['WEBLABDEUSTO_BASEURL'], reservation_id)
+    task_data = TASK_MANAGER.get_task(reservation_id)
+    status = task_data['status']
+    base_url = status.url or app.config['WEBLABDEUSTO_BASEURL']
+    print "status.url = %s; app config url = %s. Chosen: %s" % (status.url, app.config['WEBLABDEUSTO_BASEURL'], base_url)
+    used_reservation_id = status.remote_reservation_id.id or reservation_id
+    print "status.remote_reservation_id.id = %s; reservation_id = %s. Chosen: %s" % (status.remote_reservation_id.id, reservation_id, used_reservation_id)
+    sys.stdout.flush()
+    url = "%sclient/federated.html#reservation_id=%s" % (base_url, used_reservation_id)
     return render_template('confirmed.html', url = url, reservation_id = reservation_id)
 
 @app.route("/status/<reservation_id>/")
@@ -70,8 +77,10 @@ def get_status(reservation_id):
         traceback.print_exc()
         return "Error: %s" % e
 
-@app.route("/main/<laboratory_id>/")
-def main(laboratory_id):
+@app.route("/reserve/<laboratory_id>/")
+def reserve(laboratory_id):
+    if '@' not in laboratory_id:
+        laboratory_id = urllib2.unquote(laboratory_id)
     st = request.args.get('st') or ''
     try:
         space_owner_str = urllib2.urlopen("http://shindig.epfl.ch/rest/people/@owner/@self?st=%s" % st).read()
@@ -114,7 +123,7 @@ def main(laboratory_id):
 def widget(id = None):
     widget = request.args.get('widget') or 'camera'
     lab    = request.args.get('lab') or 'ud-logic@PIC experiments'
-    return render_template('widget.xml', url = url_for('main', laboratory_id = lab, _external = True), widget = widget)
+    return render_template('widget.xml', url = url_for('reserve', laboratory_id = lab, _external = True), widget = widget)
 
 
 @app.route('/')
@@ -165,7 +174,12 @@ class TaskManager(threading.Thread):
                     else:
                         reservation_data['status'] = reservation_status
                         if reservation_status.status == 'Reservation::post_reservation':
-                            # TODO: retrieve usage data
+                            try:
+                                experiment_use = client.get_experiment_use_by_id(SessionId(reservation_id))
+                                print experiment_use
+                            except:
+                                print "Error retrieving experiment use"
+                                traceback.print_exc()
                             reservations_to_remove.append(reservation_id)
 
                 with self.lock:

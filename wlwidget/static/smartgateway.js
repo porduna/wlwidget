@@ -62,7 +62,11 @@ function SmartGateway(container, url) {
 
     this._setUpMaster = function() {
         me._imMaster = true;
+
+        var buttonContainer = document.createElement("div");
+        buttonContainer.style = 'text-align: center; width: 100%';
         var button = document.createElement("button");
+        button.className = "btn btn-success";
         button.appendChild(document.createTextNode("Start reservation process"));
         button.onclick = function() {
             var token = shindig.auth.getSecurityToken();
@@ -70,7 +74,9 @@ function SmartGateway(container, url) {
             me._container.innerHTML = '<iframe id="weblabIFrame" onload="gadgets.window.adjustHeight();" frameborder="0" width="100%" height="100%" src="'+srcString+'"></iframe>';
         };
         button.onClick = button.onclick;
-        me._container.appendChild(button);
+
+        buttonContainer.appendChild(button);
+        me._container.appendChild(buttonContainer);
     }
 
     this._setUpSlave = function(){
