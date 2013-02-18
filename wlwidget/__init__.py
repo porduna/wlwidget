@@ -112,7 +112,7 @@ def reserve(laboratory_id):
         consumer_data_str = json.dumps(consumer_data)
         reservation_status = client.reserve_experiment(session_id, ExperimentId.parse(laboratory_id), '{}', consumer_data_str)
         reservation_id = reservation_status.reservation_id.id
-        TASK_MANAGER.add_task(client, reservation_id)
+        TASK_MANAGER.add_task(client, reservation_id, session_id)
         return redirect(url_for('get_status', reservation_id = reservation_id))
     except Exception as e:
         traceback.print_exc()
@@ -130,6 +130,21 @@ def widget(id = None):
 def index():
     return render_template('index.html')
 
+LAST_ACTIVITY = "not set"
+
+@app.route('/last-activity')
+def last_activity():
+    return LAST_ACTIVITY
+
+def serialize_experiment_use(experiment_use):
+    return str(experiment_use)
+
+def process_experiment_use(experiment_use):
+    activity_stream = serialize_experiment_use(experiment_use)
+    global LAST_ACTIVITY
+    LAST_ACTIVITY = activity_stream
+
+
 class TaskManager(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
@@ -138,9 +153,9 @@ class TaskManager(threading.Thread):
         self.lock = threading.Lock()
         self.reservations = {}
 
-    def add_task(self, client, reservation_id):
+    def add_task(self, client, reservation_id, session_id):
         with self.lock:
-            self.reservations[reservation_id] = dict( client=client, status = None, last_poll = time.time(), finished = False )
+            self.reservations[reservation_id] = dict( client=client, session_id = session_id, status = None, last_poll = time.time(), finished = False )
 
     def get_task(self, reservation_id):
         with self.lock:
@@ -160,7 +175,8 @@ class TaskManager(threading.Thread):
                 reservations_to_remove = []
 
                 for reservation_id, reservation_data in reservations:
-                    client = reservation_data['client']
+                    client     = reservation_data['client']
+                    session_id = reservation_data['session_id']
                     try:
                         print "Retrieving reservation...", reservation_id
                         sys.stdout.flush()
@@ -175,12 +191,25 @@ class TaskManager(threading.Thread):
                         reservation_data['status'] = reservation_status
                         if reservation_status.status == 'Reservation::post_reservation':
                             try:
-                                experiment_use = client.get_experiment_use_by_id(SessionId(reservation_id))
-                                print experiment_use
+                                experiment_use = client.get_experiment_use_by_id(session_id, SessionId(reservation_id))
+                                if experiment_use.is_alive():
+                                    pass
+                                elif experiment_use.is_cancelled() or experiment_use.is_forbidden():
+
+                                    reservations_to_remove.append(reservation_id)
+                                elif experiment_use.is_finished():
+                                    reservations_to_remove.append(reservation_id)
+                                    try:
+                                        process_experiment_use(experiment_use.experiment_use)
+                                    except:
+                                        traceback.print_exc()
+                                        print "Error processing experiment use"
+
+                                else:
+                                    print "Error: didn't know how to process", experiment_use
                             except:
                                 print "Error retrieving experiment use"
                                 traceback.print_exc()
-                            reservations_to_remove.append(reservation_id)
 
                 with self.lock:
                     for reservation_id in reservations_to_remove:
