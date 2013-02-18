@@ -37,6 +37,7 @@
             
             // Now show it
             contents += "<iframe src='" + url + "' width='100%' height='100%'>";
+            trace("I'm going to set as innerHTML: " + contents);
             container.innerHTML = contents; 
             gadgets.window.adjustHeight();
         });
