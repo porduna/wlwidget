@@ -1,10 +1,11 @@
-import sys
 import os
-import urllib2
-import threading
-import traceback
+import sys
 import json
 import time
+import urllib2
+import datetime
+import threading
+import traceback
 
 from flask import Flask, render_template, request, url_for, redirect, abort
 
@@ -137,7 +138,65 @@ def last_activity():
     return LAST_ACTIVITY
 
 def serialize_experiment_use(experiment_use):
-    return str(experiment_use)
+
+    display_name = "to be set" # TODO: this is easy
+    user_id      = "to be set" # TODO: this is easy
+    origin       = "to be set"
+    user_agent   = "to be set"
+    locale       = "to be set"
+    referer      = "to be set"
+
+    activity_stream = {}
+    ##########################
+    # 
+    #        General
+    #   
+    # TODO: UTC to ...
+    activity_stream['published']      = datetime.datetime.fromtimestamp(experiment_use.start_date).strftime("%Y-%m-%d %H:%M:%S.%sZ")
+    activity_stream['finished']       = datetime.datetime.fromtimestamp(experiment_use.end_date).strftime("%Y-%m-%d %H:%M:%S.%sZ")
+    activity_stream['reservation-id'] = experiment_use.reservation_id
+    activity_stream['verb']           = 'post'
+
+    activity_stream['target'] = {
+        'objectType' : 'remote-lab',
+        'id'         : experiment_use.experiment_id.to_weblab_str(),
+        'rig'        : experiment_use.coord_address.address,
+    }
+
+    activity_stream['actor'] = {
+        'objectType'       : 'person',
+        'displayName'      : display_name,
+        'id'               : user_id,
+        'origin'           : origin,
+        'federated-server' : None,
+        'federated-user'   : None,
+        'mobile'           : False,
+        'facebook'         : False,
+        'user-agent'       : user_agent,
+        'language'         : locale,
+        'referer'          : referer,
+    }
+
+    attachments = []
+    for command in experiment_use.commands:
+        attachments.append({
+            'published'  : datetime.datetime.fromtimestamp(command.timestamp_before).strftime("%Y-%m-%d %H:%M:%S.%sZ"),
+            'finished'   : datetime.datetime.fromtimestamp(command.timestamp_after).strftime("%Y-%m-%d %H:%M:%S.%sZ"),
+            'objectType' : 'command',
+            'id'         : 'to be defined', # TODO: a compound name probably
+            'request'    : command.command.commandstring,
+            'response'   : command.response.commandstring,
+        })
+
+    activity_stream['object'] = {
+        'objectType'  : "reservation",
+        'id'          : experiment_use.experiment_use_id,
+        'attachments' : attachments,
+    }
+
+    # TODO: populate attachments
+
+    return json.dumps(activity_stream)
 
 def process_experiment_use(experiment_use):
     activity_stream = serialize_experiment_use(experiment_use)
