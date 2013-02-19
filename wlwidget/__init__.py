@@ -113,7 +113,7 @@ def reserve(laboratory_id):
         consumer_data_str = json.dumps(consumer_data)
         reservation_status = client.reserve_experiment(session_id, ExperimentId.parse(laboratory_id), '{}', consumer_data_str)
         reservation_id = reservation_status.reservation_id.id
-        TASK_MANAGER.add_task(client, reservation_id, session_id)
+        TASK_MANAGER.add_task(client, reservation_id, session_id, name, consumer_data)
         return redirect(url_for('get_status', reservation_id = reservation_id))
     except Exception as e:
         traceback.print_exc()
@@ -137,14 +137,16 @@ LAST_ACTIVITY = "not set"
 def last_activity():
     return LAST_ACTIVITY
 
-def serialize_experiment_use(experiment_use):
+def serialize_experiment_use(experiment_use, name, consumer_data):
 
-    display_name = "to be set" # TODO: this is easy
-    user_id      = "to be set" # TODO: this is easy
-    origin       = "to be set"
-    user_agent   = "to be set"
+    display_name = name
+    user_id      = consumer_data['external_user']
+    origin       = consumer_data['from_ip']
+    user_agent   = consumer_data['user_agent']
+    referer      = consumer_data['referer']
+    # TODO
     locale       = "to be set"
-    referer      = "to be set"
+
 
     activity_stream = {}
     ##########################
@@ -178,12 +180,12 @@ def serialize_experiment_use(experiment_use):
     }
 
     attachments = []
-    for command in experiment_use.commands:
+    for pos, command in enumerate(experiment_use.commands):
         attachments.append({
             'published'  : datetime.datetime.fromtimestamp(command.timestamp_before).strftime("%Y-%m-%d %H:%M:%S.%sZ"),
             'finished'   : datetime.datetime.fromtimestamp(command.timestamp_after).strftime("%Y-%m-%d %H:%M:%S.%sZ"),
             'objectType' : 'command',
-            'id'         : 'to be defined', # TODO: a compound name probably
+            'id'         : '%s::%s' % (experiment_use.experiment_use_id, pos),
             'request'    : command.command.commandstring,
             'response'   : command.response.commandstring,
         })
@@ -194,12 +196,10 @@ def serialize_experiment_use(experiment_use):
         'attachments' : attachments,
     }
 
-    # TODO: populate attachments
-
     return json.dumps(activity_stream)
 
-def process_experiment_use(experiment_use):
-    activity_stream = serialize_experiment_use(experiment_use)
+def process_experiment_use(experiment_use, name, consumer_data):
+    activity_stream = serialize_experiment_use(experiment_use, name, consumer_data)
     global LAST_ACTIVITY
     LAST_ACTIVITY = activity_stream
 
@@ -212,9 +212,9 @@ class TaskManager(threading.Thread):
         self.lock = threading.Lock()
         self.reservations = {}
 
-    def add_task(self, client, reservation_id, session_id):
+    def add_task(self, client, reservation_id, session_id, name, consumer_data):
         with self.lock:
-            self.reservations[reservation_id] = dict( client=client, session_id = session_id, status = None, last_poll = time.time(), finished = False )
+            self.reservations[reservation_id] = dict( client=client, session_id = session_id, status = None, last_poll = time.time(), finished = False, name = name, consumer_data = consumer_data )
 
     def get_task(self, reservation_id):
         with self.lock:
@@ -234,8 +234,10 @@ class TaskManager(threading.Thread):
                 reservations_to_remove = []
 
                 for reservation_id, reservation_data in reservations:
-                    client     = reservation_data['client']
-                    session_id = reservation_data['session_id']
+                    client        = reservation_data['client']
+                    session_id    = reservation_data['session_id']
+                    name          = reservation_data['name']
+                    consumer_data = reservation_data['consumer_data']
                     try:
                         print "Retrieving reservation...", reservation_id
                         sys.stdout.flush()
@@ -259,7 +261,7 @@ class TaskManager(threading.Thread):
                                 elif experiment_use.is_finished():
                                     reservations_to_remove.append(reservation_id)
                                     try:
-                                        process_experiment_use(experiment_use.experiment_use)
+                                        process_experiment_use(experiment_use.experiment_use, name, consumer_data)
                                     except:
                                         traceback.print_exc()
                                         print "Error processing experiment use"
