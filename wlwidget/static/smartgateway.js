@@ -11,7 +11,7 @@ function SmartGateway(container, url) {
 
     this._imMaster = false;
 
-    this._LOADING_TIME     = 400; // ms
+    this._LOADING_TIME     = 900; // ms
     this._inLoadingPeriod  = true;
     this._imMasterTemporal = false; // During the loading period, see if I'm gonna be one
     this._forceNotMaster   = false; // If after the loading time, somebody comes back, define "no, you're not the master"
@@ -64,7 +64,9 @@ function SmartGateway(container, url) {
         me._imMaster = true;
 
         var buttonContainer = document.createElement("div");
-        buttonContainer.style = 'text-align: center; width: 100%';
+        buttonContainer.style.textAlign = "center"; 
+        buttonContainer.style.width = "100%"; 
+        buttonContainer.style.marginTop = "5px";
         var button = document.createElement("button");
         button.className = "btn btn-success";
         button.appendChild(document.createTextNode("Start reservation process"));
@@ -80,7 +82,7 @@ function SmartGateway(container, url) {
     }
 
     this._setUpSlave = function(){
-        me._container.innerHTML = "Waiting for the master widget...";
+        me._container.innerHTML = "<div style='width: 100%; margin-top: 5px; text-align: center' class='label label-info'>Waiting for the master widget...</span>";
     }
 
     this._onEvent = function(envelope, message) {

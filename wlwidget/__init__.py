@@ -196,7 +196,7 @@ def serialize_experiment_use(experiment_use, name, consumer_data):
         'attachments' : attachments,
     }
 
-    return json.dumps(activity_stream)
+    return json.dumps(activity_stream, indent = True)
 
 def process_experiment_use(experiment_use, name, consumer_data):
     activity_stream = serialize_experiment_use(experiment_use, name, consumer_data)
